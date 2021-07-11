@@ -3,26 +3,42 @@ import { ethers } from "ethers";
 import "./App.css";
 
 const App = () => {
+  const chainIds = {
+    mainet: 1,
+    ropsten: 3,
+    rinkeby: 4,
+    goerli: 5,
+    kovan: 42,
+  };
+
   const [inputParams, setInputParams] = useState({
     walletName: "",
+    tokenAmt: "",
+    addressTo: "",
   });
 
   const [addressList, setAddressList] = useState(
     JSON.parse(localStorage.getItem("addressList")) || []
   );
 
-  const [isTokenSent, setIsTokenSent] = useState(false);
+  const [selectedAddress, setSelectedAddress] = useState({});
 
-  // useEffect(() => {
-  //   updateBalance();
-  // }, [isTokenSent]);
+  const [ethersProvider, setEthersProvider] = useState(
+    new ethers.providers.EtherscanProvider(chainIds.rinkeby)
+  );
+
+  useEffect(() => {
+    updateMultipleBalances();
+  }, []);
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    // let provider = ethers.getDefaultProvider("rinkeby");
-    let provider = new ethers.providers.EtherscanProvider(4);
+
+    let provider = new ethers.providers.EtherscanProvider(chainIds.rinkeby);
     let randomWallet = ethers.Wallet.createRandom();
-    let wallet = new ethers.Wallet(randomWallet.privateKey, provider);
+    const { privateKey, publicKey, mnemonic, address } = randomWallet;
+
+    let wallet = new ethers.Wallet(privateKey, provider);
     console.log(randomWallet);
 
     let list = [];
@@ -30,15 +46,15 @@ const App = () => {
       .getBalance()
       .then((item) => ethers.utils.formatEther(item._hex));
 
-    await console.log(balance);
-
     list = [
       ...(JSON.parse(localStorage.getItem("addressList")) || []),
       {
-        ...randomWallet,
-        id: addressList.length === 0 ? 0 : addressList.length,
         name: inputParams.walletName,
+        privateKey,
         balance,
+        publicKey,
+        mnemonic,
+        address,
       },
     ];
 
@@ -47,24 +63,27 @@ const App = () => {
 
     setInputParams({
       walletName: "",
+      addressTo: "",
+      tokenAmt: "",
     });
   };
+  // 0x5166Cf5B71d40103390055108A58471e3c6C2f0a
   // `0xd18408acf628bb30737e08f7861981b197f895245cb2e5785f797e3163ecbba3`
 
   const getWalletBalanceByAddress = async (
     address,
-    providerName = "rinkeby"
+    chainId = chainIds.rinkeby
   ) => {
-    window.provider = new ethers.providers.EtherscanProvider(providerName);
+    window.provider = new ethers.providers.EtherscanProvider(chainId);
     let balance = await window.provider
       .getBalance(address)
       .then((balance) => ethers.utils.formatEther(balance._hex));
-    console.log(`balance`, balance);
     return balance;
   };
 
   const updateBalance = async (address) => {
     let balance = await getWalletBalanceByAddress(address);
+    console.log(balance);
     const list = addressList.map((item) => {
       if (item.address.trim() === address.trim()) {
         return {
@@ -87,102 +106,79 @@ const App = () => {
     }));
   };
 
-  // const makeTransaction = () => {
-  //   window.provider = new ethers.providers.EtherscanProvider(4);
-  //   let wallet = new ethers.Wallet(private_key);
-  // };
-  window.ethersProvider = new ethers.providers.EtherscanProvider(4);
+  const handleSelectChange = (e) => {
+    const index = e.target.selectedIndex;
+    setSelectedAddress(addressList[index - 1]);
+  };
 
-  const sendToken = async (
-    e,
-    contract_address,
-    send_account,
-    to_address,
-    send_token_amount,
-    private_key
-  ) => {
+  const setEtherscanProvider = (providerStr) => {
+    setEthersProvider(new ethers.providers.EtherscanProvider(providerStr));
+  };
+
+  const updateMultipleBalances = () => {
+    addressList.map((address) => updateBalance(address.address));
+    addressList.map((address) => console.log(address.address));
+  };
+
+  const { walletName, addressTo, tokenAmt } = inputParams;
+
+  const sendToken = async (e, contractAddress, ABI) => {
     e.preventDefault();
     try {
       let wallet = new ethers.Wallet(
-        "0xd18408acf628bb30737e08f7861981b197f895245cb2e5785f797e3163ecbba3"
+        // "0xd18408acf628bb30737e08f7861981b197f895245cb2e5785f797e3163ecbba3"
+        selectedAddress.privateKey
       );
-      let walletSigner = wallet.connect(window.ethersProvider);
-      let gasPrice = await window.ethersProvider.getGasPrice();
-      let currentGasPrice = await ethers.utils.hexlify(
-        parseInt(gasPrice.currentGasPrice)
-      );
+      let walletSigner = wallet.connect(ethersProvider);
+      let gasPrice = await ethersProvider.getGasPrice();
+      let currentGasPrice = await ethers.utils.hexlify(parseInt(gasPrice));
 
-      // if (contract_address) {
-      //   // general token send
-      //   let contract = new ethers.Contract(
-      //     contract_address,
-      //     send_abi,
-      //     walletSigner
-      //   );
+      if (contractAddress) {
+        let contract = new ethers.Contract(contractAddress, ABI, walletSigner);
 
-      //   // How many tokens?
-      //   let numberOfTokens = ethers.utils.parseUnits(send_token_amount, 18);
-      //   console.log(`numberOfTokens: ${numberOfTokens}`);
+        let numberOfTokens = ethers.utils.parseUnits(tokenAmt, 18);
 
-      //   // Send tokens
-      //   contract.transfer(to_address, numberOfTokens).then((transferResult) => {
-      //     console.dir(transferResult);
-      //     alert("sent token");
-      //   });
-      // } // ether send
-      // else {
-      const tx = {
-        from: "0x5166Cf5B71d40103390055108A58471e3c6C2f0a",
-        to: "0xE912D2277ac802523AEA3b59c1364692F6c92922",
-        value: ethers.utils.parseEther("0.01"),
-        nonce: window.ethersProvider.getTransactionCount(
-          "0x5166Cf5B71d40103390055108A58471e3c6C2f0a",
-          "latest"
-        ),
-        gasLimit: ethers.utils.hexlify(100000), // 100000
-        gasPrice: currentGasPrice,
-      };
-
-      walletSigner
-        .sendTransaction(tx)
-        .then((transaction) => {
-          console.dir(transaction);
-          transaction.wait().then((item) => {
-            console.log("item", item);
-            updateBalance(item.from);
-            updateBalance(item.to);
-          });
-        })
-        .catch((err) => {
-          console.log(err);
-          alert("failed to send!!");
+        contract.transfer(addressTo, numberOfTokens).then((transferResult) => {
+          console.dir(transferResult);
+          alert("Token is sent!");
         });
+      } else {
+        const tx = {
+          // from: "0x5166Cf5B71d40103390055108A58471e3c6C2f0a",
+          from: selectedAddress.address,
+          // to: "0x8Bc2564ee3473B7DEb8348517bd4dDBb6a2187D6",
+          to: addressTo.trim(),
+          value: ethers.utils.parseEther(tokenAmt.toString().trim()),
+          nonce: ethersProvider.getTransactionCount(
+            selectedAddress.address,
+            "latest"
+          ),
+          gasLimit: ethers.utils.hexlify(100000), // 100000
+          gasPrice: currentGasPrice,
+        };
 
-      // try {
-      //   const transaction = await walletSigner.sendTransaction(tx);
-      //   console.log(transaction);
-      //   const txReceipt = await transaction.wait();
-      //   updateBalance(txReceipt.from);
-      //   updateBalance(txReceipt.to);
-      // } catch (err) {
-      //   console.log(err);
-      //   // alert("failed to send!!");
-      // }
+        console.log(tx);
+
+        try {
+          const transaction = await walletSigner.sendTransaction(tx);
+          console.log(transaction);
+          const txReceipt = await transaction.wait();
+          console.log(txReceipt)
+          await txReceipt.status && updateMultipleBalances();
+        } catch (err) {
+          console.log(err);
+          alert("Failed! Please check your information again.");
+        }
+      }
     } catch (err) {
       console.error(err);
-      alert("Failed to send! Please check your information again.");
+      alert("Failed!");
     }
   };
 
-  // let transactionCountPromise = wallet.getTransactionCount();
-
-  // transactionCountPromise.then((transactionCount) => {
-  //   console.log(transactionCount);
-  // });
-
   return (
-    <div>
-      <div style={{ textAlign: `center`, width: `50%`, margin: `auto` }}>
+    <>
+      <div>
         <form onSubmit={onSubmit}>
           <h1>WALLETS</h1>
           <label htmlFor="walletName">Wallet Name:</label>
@@ -190,28 +186,60 @@ const App = () => {
             id="walletName"
             type="text"
             name="walletName"
-            value={inputParams.walletName}
+            value={walletName}
             onChange={handleInputChange}
           />
           <button>CREATE</button>
         </form>
-        {addressList?.map(({ balance, name, address, id }) => (
-          <div key={id}>
+        {addressList?.map(({ balance, name, address }, idx) => (
+          <div key={idx}>
             <ul>
               <li>{`${name} - ${address} - ${balance}`}</li>
             </ul>
-            <button onClick={() => updateBalance(address)}>
-              refresh this line
-            </button>
           </div>
         ))}
       </div>
       <div>
         <form onSubmit={sendToken}>
-          <button>send token</button>
+          <fieldset>
+            <legend>SEND ETH</legend>
+            <label htmlFor="addressFrom">Wallets: </label>
+            <select
+              id="addressFrom"
+              name="addressFrom"
+              onChange={handleSelectChange}
+            >
+              <option value="wallets">Please choose a wallet</option>
+              {addressList?.map(({ balance, name, address }, idx) => (
+                <option
+                  value={name}
+                  data-address={address}
+                  key={idx}
+                >{`${name} - ${address} - ${balance}`}</option>
+              ))}
+            </select>
+            <label htmlFor="addressTo">Recipient: </label>
+            <input
+              type="text"
+              id="addressTo"
+              name="addressTo"
+              value={addressTo}
+              onChange={handleInputChange}
+            />
+            <label htmlFor="tokenAmt">Amount: </label>
+            <input
+              type="text"
+              id="tokenAmt"
+              name="tokenAmt"
+              value={tokenAmt}
+              onChange={handleInputChange}
+            />
+            <button>SEND</button>
+          </fieldset>
         </form>
+        <button onClick={updateMultipleBalances}>update multiple</button>
       </div>
-    </div>
+    </>
   );
 };
 
