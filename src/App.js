@@ -34,11 +34,10 @@ const App = () => {
   const onSubmit = async (e) => {
     e.preventDefault();
 
-    let provider = new ethers.providers.EtherscanProvider(chainIds.rinkeby);
     let randomWallet = ethers.Wallet.createRandom();
     const { privateKey, publicKey, mnemonic, address } = randomWallet;
 
-    let wallet = new ethers.Wallet(privateKey, provider);
+    let wallet = new ethers.Wallet(privateKey, ethersProvider);
     console.log(randomWallet);
 
     let list = [];
@@ -70,16 +69,10 @@ const App = () => {
   // 0x5166Cf5B71d40103390055108A58471e3c6C2f0a
   // `0xd18408acf628bb30737e08f7861981b197f895245cb2e5785f797e3163ecbba3`
 
-  const getWalletBalanceByAddress = async (
-    address,
-    chainId = chainIds.rinkeby
-  ) => {
-    window.provider = new ethers.providers.EtherscanProvider(chainId);
-    let balance = await window.provider
+  const getWalletBalanceByAddress = (address, chainId = chainIds.rinkeby) =>
+    ethersProvider
       .getBalance(address)
       .then((balance) => ethers.utils.formatEther(balance._hex));
-    return balance;
-  };
 
   const updateBalance = async (address) => {
     let balance = await getWalletBalanceByAddress(address);
@@ -116,7 +109,8 @@ const App = () => {
   };
 
   const updateMultipleBalances = () => {
-    addressList.map((address) => updateBalance(address.address));
+    let arr = JSON.parse(localStorage.getItem("addressList"))
+    arr.map((address) => updateBalance(address.address));
     addressList.map((address) => console.log(address.address));
   };
 
@@ -163,8 +157,8 @@ const App = () => {
           const transaction = await walletSigner.sendTransaction(tx);
           console.log(transaction);
           const txReceipt = await transaction.wait();
-          console.log(txReceipt)
-          await txReceipt.status && updateMultipleBalances();
+          console.log(txReceipt);
+          (await txReceipt.status) === 1 && updateMultipleBalances();
         } catch (err) {
           console.log(err);
           alert("Failed! Please check your information again.");
@@ -175,6 +169,8 @@ const App = () => {
       alert("Failed!");
     }
   };
+
+  console.log("RENDERED!!");
 
   return (
     <>
