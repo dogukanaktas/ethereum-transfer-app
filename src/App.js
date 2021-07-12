@@ -17,9 +17,7 @@ const App = () => {
     addressTo: "",
   });
 
-  const [addressList, setAddressList] = useState(
-    JSON.parse(localStorage.getItem("addressList")) || []
-  );
+  const [addressList, setAddressList] = useState([]);
 
   const [selectedAddress, setSelectedAddress] = useState({});
 
@@ -28,7 +26,8 @@ const App = () => {
   );
 
   useEffect(() => {
-    updateMultipleBalances();
+    // updateMultipleBalances();
+    setAddressList(JSON.parse(localStorage.getItem("addressList")));
   }, []);
 
   const onSubmit = async (e) => {
@@ -74,20 +73,49 @@ const App = () => {
       .getBalance(address)
       .then((balance) => ethers.utils.formatEther(balance._hex));
 
+  const getWalletBalanceByAddressConsoleLog = (
+    address,
+    chainId = chainIds.rinkeby
+  ) =>
+    console.log(
+      ethersProvider
+        .getBalance(address)
+        .then((balance) => ethers.utils.formatEther(balance._hex))
+    );
+
   const updateBalance = async (address) => {
     let balance = await getWalletBalanceByAddress(address);
     console.log(balance);
-    const list = addressList.map((item) => {
-      if (item.address.trim() === address.trim()) {
-        return {
-          ...item,
-          balance,
-        };
+    // const list = await addressList.map((item,idx) => {
+    //   if (item.address.trim() === address.trim()) {
+    //     console.log(true, item.address, address);
+    //     return {
+    //       ...JSON.parse(localStorage.getItem("addressList"))[idx],
+    //       balance,
+    //     };
+    //   } else {
+    //     console.log(false, item.address, address);
+    //   }
+    //   return item;
+    // });
+
+    let arr = [];
+
+    addressList.forEach((v) => {
+      if (v.address.trim() === address.trim()) {
+        arr.push({
+          ...v,
+          balance
+        });
       }
-      return item;
     });
-    setAddressList(list);
-    localStorage.setItem("addressList", JSON.stringify(list));
+
+    console.log(arr)
+
+
+    // console.log(list);
+    // await localStorage.setItem("addressList ", JSON.stringify(list));
+    // await setAddressList(list);
   };
 
   const handleInputChange = (e) => {
@@ -108,15 +136,15 @@ const App = () => {
     setEthersProvider(new ethers.providers.EtherscanProvider(providerStr));
   };
 
-  const updateMultipleBalances = () => {
-    let arr = JSON.parse(localStorage.getItem("addressList"))
-    arr.map((address) => updateBalance(address.address));
-    addressList.map((address) => console.log(address.address));
-  };
+  // const updateMultipleBalances = () => {
+  //   let arr = JSON.parse(localStorage.getItem("addressList"));
+  //   arr.map((address) => updateBalance(address.address));
+  //   addressList.map((address) => console.log(address.address));
+  // };
 
   const { walletName, addressTo, tokenAmt } = inputParams;
 
-  const sendToken = async (e, contractAddress, ABI) => {
+  const sendToken = async (e) => {
     e.preventDefault();
     try {
       let wallet = new ethers.Wallet(
@@ -127,42 +155,33 @@ const App = () => {
       let gasPrice = await ethersProvider.getGasPrice();
       let currentGasPrice = await ethers.utils.hexlify(parseInt(gasPrice));
 
-      if (contractAddress) {
-        let contract = new ethers.Contract(contractAddress, ABI, walletSigner);
+      const tx = {
+        // from: "0x5166Cf5B71d40103390055108A58471e3c6C2f0a",
+        from: selectedAddress.address,
+        // to: "0x8Bc2564ee3473B7DEb8348517bd4dDBb6a2187D6",
+        to: addressTo.trim(),
+        value: ethers.utils.parseEther(tokenAmt.toString().trim()),
+        nonce: ethersProvider.getTransactionCount(
+          selectedAddress.address,
+          "latest"
+        ),
+        gasLimit: ethers.utils.hexlify(100000), // 100000
+        gasPrice: currentGasPrice,
+      };
 
-        let numberOfTokens = ethers.utils.parseUnits(tokenAmt, 18);
+      console.log(tx);
 
-        contract.transfer(addressTo, numberOfTokens).then((transferResult) => {
-          console.dir(transferResult);
-          alert("Token is sent!");
-        });
-      } else {
-        const tx = {
-          // from: "0x5166Cf5B71d40103390055108A58471e3c6C2f0a",
-          from: selectedAddress.address,
-          // to: "0x8Bc2564ee3473B7DEb8348517bd4dDBb6a2187D6",
-          to: addressTo.trim(),
-          value: ethers.utils.parseEther(tokenAmt.toString().trim()),
-          nonce: ethersProvider.getTransactionCount(
-            selectedAddress.address,
-            "latest"
-          ),
-          gasLimit: ethers.utils.hexlify(100000), // 100000
-          gasPrice: currentGasPrice,
-        };
-
-        console.log(tx);
-
-        try {
-          const transaction = await walletSigner.sendTransaction(tx);
-          console.log(transaction);
-          const txReceipt = await transaction.wait();
-          console.log(txReceipt);
-          (await txReceipt.status) === 1 && updateMultipleBalances();
-        } catch (err) {
-          console.log(err);
-          alert("Failed! Please check your information again.");
-        }
+      try {
+        const transaction = await walletSigner.sendTransaction(tx);
+        console.log("transaction", transaction);
+        const txReceipt = await transaction.wait();
+        console.log("txReceipt", txReceipt);
+        // (await txReceipt.status) === 1 && updateMultipleBalances();
+        await updateBalance(txReceipt.from);
+        await updateBalance(txReceipt.to);
+      } catch (err) {
+        console.log(err);
+        alert("Failed! Please check your information again.");
       }
     } catch (err) {
       console.error(err);
@@ -233,7 +252,25 @@ const App = () => {
             <button>SEND</button>
           </fieldset>
         </form>
-        <button onClick={updateMultipleBalances}>update multiple</button>
+        {/* <button onClick={updateMultipleBalances}>update multiple</button> */}
+        <button
+          onClick={() =>
+            getWalletBalanceByAddressConsoleLog(
+              "0x825a46c80bA179992c216D1803Ca103CDa35C853"
+            )
+          }
+        >
+          apple balance
+        </button>
+        <button
+          onClick={() =>
+            getWalletBalanceByAddressConsoleLog(
+              "0xfcc6d853E394CE6dBc383D3A8ff89D1e579b10BA"
+            )
+          }
+        >
+          dogukan balance
+        </button>
       </div>
     </>
   );
