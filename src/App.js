@@ -24,7 +24,7 @@ const App = () => {
     JSON.parse(localStorage.getItem("addressList")) || []
   );
   const [selectedAddress, setSelectedAddress] = useState({});
-  const [isloading, setIsloading] = useState(false);
+  const [isLoading, setisLoading] = useState(false);
 
   useEffect(() => {
     updateMultipleBalances();
@@ -132,11 +132,11 @@ const App = () => {
 
       try {
         const transaction = await walletSigner.sendTransaction(tx);
-        await setIsloading(true);
+        await setisLoading(true);
         const txReceipt = await transaction.wait();
         let txAdresses = [txReceipt.from, txReceipt.to];
         await updateBalance(txAdresses);
-        setIsloading(false);
+        setisLoading(false);
         alert(
           `The token has been sent successfully! Gas price is ${ethers.utils.formatEther(
             txReceipt.gasUsed._hex
@@ -213,7 +213,7 @@ const App = () => {
               onChange={handleInputChange}
             />
             <button>SEND</button>
-            {isloading && <h3>PENDING...</h3>}
+            {isLoading && <h3>PENDING...</h3>}
           </fieldset>
         </form>
       </div>
